@@ -14,4 +14,4 @@ deep-head-pose-lite/*
 AFLW2000/*
 subsetTrial/*
 *.pkl
-code/data/cifar10/*
+code/data/*
