@@ -53,6 +53,18 @@ A really cool lightweight version of HopeNet:
 
 [Deep Head Pose Light](https://github.com/OverEuro/deep-head-pose-lite)
 
+# Changes made in the original source
+---
+- `quantization.py` and `pruning.py` is added to optimize the existing model with minimal loss in accuracy.
+- `onnxConvert.py` is added to convert the optimized model in ONNX format for cpu inferencing.
+- custom test files are prepared to test onnx model performance and inferencing over unlabelled datasets. 
+- `generateFilename.py` is added to create a text file containing the list of images to be used.
+- use the following command to run test over onnx version:
+```
+deep-head-pose/code/onnxHopenetCustom_test.py --data_dir <path to images> --filename_list <text file containing list of images> --snapshot .\Hopenet_alpha2_Q8BitONNX.onnx --batch_size 1 --dataset custom
+```
+
+
 
 If you find Hopenet useful in your research please cite:
 
