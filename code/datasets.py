@@ -8,6 +8,8 @@ from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 
 from PIL import Image, ImageFilter
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 import utils
 
@@ -565,4 +567,59 @@ class BIWI(Dataset):
 
     def __len__(self):
         # 15,667
+        return self.length
+
+class custom(Dataset):
+    def __init__(self, data_dir, filename_path, transform, img_ext='.jpg', image_mode='RGB'):
+        self.data_dir = data_dir
+        self.transform = transform
+        self.img_ext = img_ext
+        # self.annot_ext = annot_ext
+
+        filename_list = get_list_from_filenames(filename_path)
+
+        self.X_train = filename_list
+        # self.y_train = filename_list
+        self.image_mode = image_mode
+        self.length = len(filename_list)
+
+    def __getitem__(self, index):
+        img = Image.open(os.path.join(self.data_dir, self.X_train[index]))
+        # img = Image.open(os.path.join(self.data_dir, self.X_train[index] + self.img_ext))
+        img = img.convert(self.image_mode)
+        # mat_path = os.path.join(self.data_dir, self.y_train[index] + self.annot_ext)
+
+        # Crop the face loosely
+        # pt2d = utils.get_pt2d_from_mat(mat_path)
+
+        # x_min = min(pt2d[0,:])
+        # y_min = min(pt2d[1,:])
+        # x_max = max(pt2d[0,:])
+        # y_max = max(pt2d[1,:])
+
+        # k = 0.20
+        # x_min -= 2 * k * abs(x_max - x_min)
+        # y_min -= 2 * k * abs(y_max - y_min)
+        # x_max += 2 * k * abs(x_max - x_min)
+        # y_max += 0.6 * k * abs(y_max - y_min)
+        # img = img.crop((int(x_min), int(y_min), int(x_max), int(y_max)))
+
+        # We get the pose in radians
+        # pose = utils.get_ypr_from_mat(mat_path)
+        # And convert to degrees.
+        # pitch = pose[0] * 180 / np.pi
+        # yaw = pose[1] * 180 / np.pi
+        # roll = pose[2] * 180 / np.pi
+        # Bin values
+        # bins = np.array(range(-99, 102, 3))
+        # labels = torch.LongTensor(np.digitize([yaw, pitch, roll], bins) - 1)
+        # cont_labels = torch.FloatTensor([yaw, pitch, roll])
+
+        if self.transform is not None:
+            img = self.transform(img)
+
+        return img, self.X_train[index]
+
+    def __len__(self):
+        # 2,000
         return self.length

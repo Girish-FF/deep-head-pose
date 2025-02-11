@@ -16,6 +16,9 @@ import torch.nn.functional as F
 import datasets, hopenet
 import torch.utils.model_zoo as model_zoo
 
+import hopenetlite_v2
+import stable_hopenetlite
+
 def parse_args():
     """Parse input arguments."""
     parser = argparse.ArgumentParser(description='Head pose estimation using the Hopenet network.')
@@ -43,6 +46,7 @@ def parse_args():
 
 def get_ignored_params(model):
     # Generator function that yields ignored params.
+    # b = [model.conv1]
     b = [model.conv1, model.bn1, model.fc_finetune]
     for i in range(len(b)):
         for module_name, module in b[i].named_modules():
@@ -88,18 +92,27 @@ if __name__ == '__main__':
         os.makedirs('output/snapshots')
 
     # ResNet50 structure
-    model = hopenet.Hopenet(torchvision.models.resnet.Bottleneck, [3, 4, 6, 3], 66)
+    # model = hopenet.Hopenet(torchvision.models.resnet.Bottleneck, [3, 4, 6, 3], 66)
 
-    if args.snapshot == '':
-        load_filtered_state_dict(model, model_zoo.load_url('https://download.pytorch.org/models/resnet50-19c8e357.pth'))
-    else:
-        saved_state_dict = torch.load(args.snapshot)
-        model.load_state_dict(saved_state_dict)
+    # if args.snapshot == '':
+        # load_filtered_state_dict(model, model_zoo.load_url('https://download.pytorch.org/models/resnet50-19c8e357.pth'))
+    # else:
+    #     saved_state_dict = torch.load(args.snapshot)
+    #     model.load_state_dict(saved_state_dict)
+    model = torch.load(args.snapshot)
+        
+    # #### For HopeNet lite model ###### 
+    # model = hopenetlite_v2.HopeNetLite()
+    # saved_state_dict = torch.load(args.snapshot)
+    # model.load_state_dict(saved_state_dict, strict=False)
+    # model = stable_hopenetlite.shufflenet_v2_x1_0()
+    # saved_state_dict = torch.load(args.snapshot)
+    # model.load_state_dict(saved_state_dict, strict=False)
 
-    print 'Loading data.'
+    print('Loading data.')
 
-    transformations = transforms.Compose([transforms.Scale(240),
-    transforms.RandomCrop(224), transforms.ToTensor(),
+    transformations = transforms.Compose([transforms.Resize(240),
+    transforms.CenterCrop(224), transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
     if args.dataset == 'Pose_300W_LP':
@@ -119,7 +132,7 @@ if __name__ == '__main__':
     elif args.dataset == 'AFW':
         pose_dataset = datasets.AFW(args.data_dir, args.filename_list, transformations)
     else:
-        print 'Error: not a valid dataset name'
+        print('Error: not a valid dataset name')
         sys.exit()
 
     train_loader = torch.utils.data.DataLoader(dataset=pose_dataset,
@@ -134,15 +147,22 @@ if __name__ == '__main__':
     alpha = args.alpha
 
     softmax = nn.Softmax().cuda(gpu)
-    idx_tensor = [idx for idx in xrange(66)]
+    idx_tensor = [idx for idx in range(66)]
     idx_tensor = Variable(torch.FloatTensor(idx_tensor)).cuda(gpu)
 
     optimizer = torch.optim.Adam([{'params': get_ignored_params(model), 'lr': 0},
                                   {'params': get_non_ignored_params(model), 'lr': args.lr},
                                   {'params': get_fc_params(model), 'lr': args.lr * 5}],
                                    lr = args.lr)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=0.00001, weight_decay=0.05)
 
-    print 'Ready to train network.'
+    print('Ready to train network.')
+    prev_yaw = np.inf
+    # prev_pitch = np.inf
+    # prev_roll = np.inf
+    averageError = np.inf
+    conseq_epochs = 0
+    best_model = None
     for epoch in range(num_epochs):
         for i, (images, labels, cont_labels, name) in enumerate(train_loader):
             images = Variable(images).cuda(gpu)
@@ -184,17 +204,38 @@ if __name__ == '__main__':
             loss_roll += alpha * loss_reg_roll
 
             loss_seq = [loss_yaw, loss_pitch, loss_roll]
-            grad_seq = [torch.ones(1).cuda(gpu) for _ in range(len(loss_seq))]
+            # loss_seq = [torch.unsqueeze(loss_yaw,0), torch.unsqueeze(loss_pitch,0), torch.unsqueeze(loss_roll,0)]
+            # grad_seq = [torch.ones(1).cuda(gpu) for _ in range(len(loss_seq))]
+            grad_seq = [torch.tensor(1, dtype=torch.float).cuda(gpu) for _ in range(len(loss_seq))]
             optimizer.zero_grad()
             torch.autograd.backward(loss_seq, grad_seq)
             optimizer.step()
 
-            if (i+1) % 100 == 0:
-                print ('Epoch [%d/%d], Iter [%d/%d] Losses: Yaw %.4f, Pitch %.4f, Roll %.4f'
-                       %(epoch+1, num_epochs, i+1, len(pose_dataset)//batch_size, loss_yaw.data[0], loss_pitch.data[0], loss_roll.data[0]))
+            # if loss_yaw.item()<prev_yaw and loss_pitch.item()<prev_pitch and loss_roll.item()<prev_roll:
+            #     best_model = model.state_dict()
+            #     prev_yaw, prev_pitch, prev_roll = loss_yaw.item(), loss_pitch.item(), loss_roll.item()
 
+            if (i+1) % 100 == 0:
+                # print ('Epoch [%d/%d], Iter [%d/%d] Losses: Yaw %.4f, Pitch %.4f, Roll %.4f'
+                    #    %(epoch+1, num_epochs, i+1, len(pose_dataset)//batch_size, loss_yaw.data[0], loss_pitch.data[0], loss_roll.data[0]))
+                print ('Epoch [%d/%d], Iter [%d/%d] Losses: Yaw %.4f, Pitch %.4f, Roll %.4f'
+                       %(epoch+1, num_epochs, i+1, len(pose_dataset)//batch_size, loss_yaw.item(), loss_pitch.item(), loss_roll.item()))
+
+        # if np.average([loss_yaw.item(),loss_pitch.item(), loss_roll.item()])<averageError and loss_yaw.item()<prev_yaw:
+        #     best_model = model.state_dict()
+        #     conseq_epochs = 0
+        #     averageError = np.average([loss_yaw.item(),loss_pitch.item(), loss_roll.item()])
+        #     prev_yaw = loss_yaw.item()
+        # else:
+        #     conseq_epochs +=1
+
+        # if conseq_epochs == 5:
+        #     print(f"Early stopping at {epoch} epoch as loss does not reduced for last {conseq_epochs} iterations.")
+        #     break
         # Save models at numbered epochs.
-        if epoch % 1 == 0 and epoch < num_epochs:
-            print 'Taking snapshot...'
-            torch.save(model.state_dict(),
-            'output/snapshots/' + args.output_string + '_epoch_'+ str(epoch+1) + '.pkl')
+        # if epoch % 1 == 0 and epoch < num_epochs:
+        #     print('Taking snapshot...')
+        #     torch.save(model.state_dict(),
+        #     'output/snapshots/' + args.output_string + '_epoch_'+ str(epoch+1) + '.pkl')
+    # model.load_state_dict(best_model)
+    torch.save(model, 'output/snapshots/' + args.output_string + '.pth')

@@ -55,7 +55,7 @@ def get_ignored_params(model):
 def get_non_ignored_params(model):
     # Generator function that yields params that will be optimized.
     b = []
-    for idx in xrange(3, len(model.features)):
+    for idx in range(3, len(model.features)):
         b.append(model.features[idx])
     for layer in model.classifier:
         b.append(layer)
@@ -94,9 +94,9 @@ if __name__ == '__main__':
     model = hopenet.AlexNet(66)
     load_filtered_state_dict(model, model_zoo.load_url(model_urls['alexnet']))
 
-    print 'Loading data.'
+    print('Loading data.')
 
-    transformations = transforms.Compose([transforms.Scale(240),
+    transformations = transforms.Compose([transforms.Resize(240),
     transforms.RandomCrop(224), transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
@@ -115,7 +115,7 @@ if __name__ == '__main__':
     elif args.dataset == 'AFW':
         pose_dataset = datasets.AFW(args.data_dir, args.filename_list, transformations)
     else:
-        print 'Error: not a valid dataset name'
+        print('Error: not a valid dataset name')
         sys.exit()
     train_loader = torch.utils.data.DataLoader(dataset=pose_dataset,
                                                batch_size=batch_size,
@@ -129,7 +129,7 @@ if __name__ == '__main__':
     # Regression loss coefficient
     alpha = args.alpha
 
-    idx_tensor = [idx for idx in xrange(66)]
+    idx_tensor = [idx for idx in range(66)]
     idx_tensor = Variable(torch.FloatTensor(idx_tensor)).cuda(gpu)
 
     optimizer = torch.optim.Adam([{'params': get_ignored_params(model), 'lr': 0},
@@ -137,7 +137,7 @@ if __name__ == '__main__':
                                   {'params': get_fc_params(model), 'lr': args.lr * 5}],
                                    lr = args.lr)
 
-    print 'Ready to train network.'
+    print('Ready to train network.')
     for epoch in range(num_epochs):
         for i, (images, labels, cont_labels, name) in enumerate(train_loader):
             images = Variable(images).cuda(gpu)
@@ -189,6 +189,6 @@ if __name__ == '__main__':
 
         # Save models at numbered epochs.
         if epoch % 1 == 0 and epoch < num_epochs:
-            print 'Taking snapshot...'
+            print('Taking snapshot...')
             torch.save(model.state_dict(),
             'output/snapshots/' + args.output_string + '_epoch_'+ str(epoch+1) + '.pkl')

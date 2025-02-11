@@ -4,3 +4,14 @@ data/*
 output/*
 *.jpg
 *.png
+HeadPoseImage/*
+deep-head-pose-lite/*
+*.pth
+*.onnx
+*.csv
+*.txt
+300W_LP/*
+AFLW2000/*
+subsetTrial/*
+*.pkl
+code/data/cifar10/*
